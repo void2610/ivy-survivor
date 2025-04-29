@@ -1,0 +1,74 @@
+using System;
+using System.Threading;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using TMPro;
+using Cysharp.Threading.Tasks;
+
+
+public static class Utils
+{
+    /// <summary>
+    /// オブジェクトにイベントを追加する
+    /// </summary>
+    public static void AddEventToObject(GameObject obj, System.Action action, EventTriggerType type, bool removeExisting = true)
+    {
+        var trigger = obj.GetComponent<EventTrigger>();
+        if (!trigger)
+        {
+            trigger = obj.AddComponent<EventTrigger>();
+        }
+        
+        if(removeExisting) trigger.triggers.RemoveAll(x => x.eventID == type);
+        
+        var entry = new EventTrigger.Entry {eventID = type};
+        entry.callback.AddListener((data) => action());
+        trigger.triggers.Add(entry);
+    }
+    
+    /// <summary>
+    /// オブジェクトから全てのイベントを削除する
+    /// </summary>
+    public static void RemoveAllEventFromObject(GameObject obj)
+    {
+        var trigger = obj.GetComponent<EventTrigger>();
+        if (trigger)
+            trigger.triggers.Clear();
+        var button = obj.GetComponent<UnityEngine.UI.Button>();
+        if (button)
+            button.onClick.RemoveAllListeners();
+    }
+
+    /// <summary>
+    /// 指定時間 await するが、途中で指定した条件が満たされた場合は即座に終了する
+    /// </summary>
+    /// <param name="delayTime">待機時間(ms)</param>
+    /// <param name="condition">途中で終了させる条件</param>
+    /// <param name="cancellationToken">キャンセル用トークン（オプション）</param>
+    public static async UniTask WaitOrSkip(int delayTime, Func<bool> condition, CancellationToken cancellationToken = default)
+    {
+        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        {
+            var delayTask = UniTask.Delay(delayTime, cancellationToken: cts.Token);
+            var conditionTask = UniTask.WaitUntil(condition, cancellationToken: cts.Token);
+            
+            var result = await UniTask.WhenAny(delayTask, conditionTask);
+
+            // 待機をスキップするためキャンセル
+            if (result == 1) cts.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// 指定時間 await するが、途中でクリックかキー操作がされた場合は即座に終了する
+    /// </summary>
+    // public static async UniTask WaitOrSkipInput(int delayTime, CancellationToken cancellationToken = default)
+    // {
+    //     await WaitOrSkip(delayTime, () => InputProvider.Instance.IsSkipButtonPressed(), cancellationToken);
+    // }
+}
